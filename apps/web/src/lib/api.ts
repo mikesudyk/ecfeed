@@ -33,7 +33,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 // ─── Auth ───────────────────────────────────────────────────
 
 export const auth = {
-  me: () => request<User>("/api/me"),
+  me: () => request<User>("/auth/me"),
   logout: () => request<void>("/auth/logout", { method: "POST" }),
   loginUrl: () => `${API_URL}/auth/google`,
 };
