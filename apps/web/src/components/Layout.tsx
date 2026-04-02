@@ -2,6 +2,7 @@ import { Outlet, Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context";
 import { useTheme } from "../lib/theme-context";
 import { useCompose } from "../lib/compose-context";
+import { Avatar } from "./PostCard";
 
 export default function Layout() {
   const { user, isAuthenticated, login, logout } = useAuth();
@@ -38,9 +39,7 @@ export default function Layout() {
                   + New Post
                 </button>
                 <Link to={`/user/${user?.id}`}>
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-500 to-purple-400 flex items-center justify-center text-white text-xs font-bold">
-                    {user?.displayName?.slice(0, 2).toUpperCase()}
-                  </div>
+                  <Avatar user={user!} size="sm" />
                 </Link>
               </>
             ) : (
