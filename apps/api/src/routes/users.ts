@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { requireAuth, optionalAuth } from "../middleware/auth.js";
 import { validateBody, validateQuery, updateProfileSchema, paginationSchema } from "../middleware/validation.js";
 import { AppError } from "../middleware/errors.js";
@@ -184,7 +184,7 @@ router.get("/:id/likes", validateQuery(paginationSchema), async (req: Request, r
 
 // ─── Update own profile (auth required) ─────────────────────
 
-router.put("/me", requireAuth, validateBody(updateProfileSchema), async (req: Request, res: Response) => {
+router.put("/me", requireAuth, validateBody(updateProfileSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const { displayName, bio, roleTitle } = req.body;
@@ -218,9 +218,7 @@ router.put("/me", requireAuth, validateBody(updateProfileSchema), async (req: Re
       createdAt: user.created_at,
     });
   } catch (err) {
-    if (err instanceof AppError) throw err;
-    console.error("Error updating profile:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to update profile", statusCode: 500 });
+    next(err);
   }
 });
 

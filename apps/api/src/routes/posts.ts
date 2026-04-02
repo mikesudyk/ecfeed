@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { requireAuth, optionalAuth } from "../middleware/auth.js";
 import {
   validateBody,
@@ -99,7 +99,7 @@ function postQuery(userId?: string): string {
 
 // ─── List top-level posts (public) ──────────────────────────
 
-router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response) => {
+router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { cursor, limit, category } = req.query as any;
     const userId = req.user?.id;
@@ -137,14 +137,13 @@ router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Reque
       hasMore,
     });
   } catch (err) {
-    console.error("Error listing posts:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to list posts", statusCode: 500 });
+    next(err);
   }
 });
 
 // ─── Get single post with replies (public) ──────────────────
 
-router.get("/:id", optionalAuth, async (req: Request, res: Response) => {
+router.get("/:id", optionalAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user?.id;
 
@@ -179,14 +178,13 @@ router.get("/:id", optionalAuth, async (req: Request, res: Response) => {
       replies: repliesResult.rows.map((r) => formatPost(r, userId)),
     });
   } catch (err) {
-    console.error("Error fetching post:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to fetch post", statusCode: 500 });
+    next(err);
   }
 });
 
 // ─── Create post (auth required) ────────────────────────────
 
-router.post("/", requireAuth, validateBody(createPostSchema), async (req: Request, res: Response) => {
+router.post("/", requireAuth, validateBody(createPostSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { title, body, url, imageUrl, category, quotedPostId } = req.body;
     const userId = req.user!.id;
@@ -214,15 +212,13 @@ router.post("/", requireAuth, validateBody(createPostSchema), async (req: Reques
 
     res.status(201).json(formatPost(postResult.rows[0], userId));
   } catch (err) {
-    if (err instanceof AppError) throw err;
-    console.error("Error creating post:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to create post", statusCode: 500 });
+    next(err);
   }
 });
 
 // ─── Update own post (auth required) ────────────────────────
 
-router.put("/:id", requireAuth, validateBody(updatePostSchema), async (req: Request, res: Response) => {
+router.put("/:id", requireAuth, validateBody(updatePostSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
 
@@ -261,15 +257,13 @@ router.put("/:id", requireAuth, validateBody(updatePostSchema), async (req: Requ
     const postResult = await pool.query(`${postQuery(userId)} WHERE p.id = $1`, [req.params.id]);
     res.json(formatPost(postResult.rows[0], userId));
   } catch (err) {
-    if (err instanceof AppError) throw err;
-    console.error("Error updating post:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to update post", statusCode: 500 });
+    next(err);
   }
 });
 
 // ─── Delete own post (auth required) ────────────────────────
 
-router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const existing = await pool.query("SELECT author_id, parent_id FROM posts WHERE id = $1", [req.params.id]);
@@ -292,15 +286,13 @@ router.delete("/:id", requireAuth, async (req: Request, res: Response) => {
     await pool.query("DELETE FROM posts WHERE id = $1", [req.params.id]);
     res.status(204).send();
   } catch (err) {
-    if (err instanceof AppError) throw err;
-    console.error("Error deleting post:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to delete post", statusCode: 500 });
+    next(err);
   }
 });
 
 // ─── Create reply (auth required) ───────────────────────────
 
-router.post("/:id/replies", requireAuth, validateBody(createReplySchema), async (req: Request, res: Response) => {
+router.post("/:id/replies", requireAuth, validateBody(createReplySchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const postId = req.params.id;
@@ -341,15 +333,13 @@ router.post("/:id/replies", requireAuth, validateBody(createReplySchema), async 
     const postResult = await pool.query(`${postQuery(userId)} WHERE p.id = $1`, [result.rows[0].id]);
     res.status(201).json(formatPost(postResult.rows[0], userId));
   } catch (err) {
-    if (err instanceof AppError) throw err;
-    console.error("Error creating reply:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to create reply", statusCode: 500 });
+    next(err);
   }
 });
 
 // ─── Like / Unlike (auth required) ──────────────────────────
 
-router.post("/:id/like", requireAuth, async (req: Request, res: Response) => {
+router.post("/:id/like", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const postId = req.params.id;
@@ -372,13 +362,11 @@ router.post("/:id/like", requireAuth, async (req: Request, res: Response) => {
 
     res.json({ liked: true });
   } catch (err) {
-    if (err instanceof AppError) throw err;
-    console.error("Error liking post:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to like post", statusCode: 500 });
+    next(err);
   }
 });
 
-router.delete("/:id/like", requireAuth, async (req: Request, res: Response) => {
+router.delete("/:id/like", requireAuth, async (req: Request, res: Response, next: NextFunction) => {
   try {
     const userId = req.user!.id;
     const postId = req.params.id;
@@ -392,8 +380,7 @@ router.delete("/:id/like", requireAuth, async (req: Request, res: Response) => {
 
     res.json({ liked: false });
   } catch (err) {
-    console.error("Error unliking post:", err);
-    res.status(500).json({ error: "internal_error", message: "Failed to unlike post", statusCode: 500 });
+    next(err);
   }
 });
 
