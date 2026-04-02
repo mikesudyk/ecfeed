@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "prompt",
-      includeAssets: ["favicon.svg", "apple-touch-icon.png"],
+      includeAssets: ["favicon.svg", "favicon.png", "apple-touch-icon.png", "og.png"],
       manifest: {
         name: "EC Feed",
         short_name: "EC Feed",
