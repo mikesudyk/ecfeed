@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { CATEGORY_META, POST_CATEGORIES, MAX_BODY_LENGTH, MAX_TITLE_LENGTH, type Post, type PostCategory, type LinkPreviewResponse } from "@ecfeed/shared";
+import {
+  CATEGORY_META, POST_CATEGORIES, MAX_BODY_LENGTH, MAX_TITLE_LENGTH,
+  MAX_IMAGE_SIZE_MB, ACCEPTED_IMAGE_TYPES,
+  type Post, type PostCategory, type LinkPreviewResponse,
+} from "@ecfeed/shared";
 import { posts as postsApi, uploads } from "../lib/api";
 import { Avatar, relativeTime } from "./PostCard";
 
@@ -90,6 +94,235 @@ function QuotedPostEmbed({ post }: { post: Post }) {
   );
 }
 
+// ─── Image Upload Zone ────────────────────────────────────────────────────────
+
+type UploadStatus = "idle" | "dragging" | "uploading" | "done" | "error";
+
+interface ImageUploadZoneProps {
+  onUploaded: (publicUrl: string) => void;
+  onRemoved: () => void;
+  onUploadingChange: (v: boolean) => void;
+}
+
+function ImageUploadZone({ onUploaded, onRemoved, onUploadingChange }: ImageUploadZoneProps) {
+  const [status, setStatus] = useState<UploadStatus>("idle");
+  const [progress, setProgress] = useState(0);
+  const [previewSrc, setPreviewSrc] = useState<string | null>(null);
+  const [fileName, setFileName] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const dragCounter = useRef(0);
+  const xhrRef = useRef<XMLHttpRequest | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Revoke object URL and abort any in-flight XHR on unmount
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+      xhrRef.current?.abort();
+    };
+  }, []);
+
+  const startUpload = useCallback(async (file: File) => {
+    if (!(ACCEPTED_IMAGE_TYPES as readonly string[]).includes(file.type)) {
+      setStatus("error");
+      setErrorMsg(`Unsupported type. Use JPEG, PNG, WebP, or GIF.`);
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+      setStatus("error");
+      setErrorMsg(`File too large. Max ${MAX_IMAGE_SIZE_MB} MB.`);
+      return;
+    }
+
+    // Show local preview immediately — no waiting for the upload
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const objUrl = URL.createObjectURL(file);
+    objectUrlRef.current = objUrl;
+    setPreviewSrc(objUrl);
+    setFileName(file.name);
+    setStatus("uploading");
+    setProgress(0);
+    onUploadingChange(true);
+
+    try {
+      const { uploadUrl, publicUrl } = await uploads.presign(file.name, file.type);
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhrRef.current = xhr;
+        xhr.open("PUT", uploadUrl);
+        xhr.setRequestHeader("Content-Type", file.type);
+        xhr.upload.addEventListener("progress", (e) => {
+          if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+        });
+        xhr.addEventListener("load", () =>
+          xhr.status >= 200 && xhr.status < 300
+            ? resolve()
+            : reject(new Error(`Upload failed (${xhr.status})`))
+        );
+        xhr.addEventListener("error", () => reject(new Error("Network error")));
+        xhr.addEventListener("abort", () => reject(new Error("aborted")));
+        xhr.send(file);
+      });
+
+      setStatus("done");
+      setProgress(100);
+      onUploaded(publicUrl);
+    } catch (err) {
+      if (err instanceof Error && err.message === "aborted") return;
+      setStatus("error");
+      setErrorMsg(err instanceof Error ? err.message : "Upload failed");
+      if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
+      setPreviewSrc(null);
+    } finally {
+      onUploadingChange(false);
+      xhrRef.current = null;
+    }
+  }, [onUploaded, onUploadingChange]);
+
+  const handleRemove = () => {
+    xhrRef.current?.abort();
+    if (objectUrlRef.current) { URL.revokeObjectURL(objectUrlRef.current); objectUrlRef.current = null; }
+    setPreviewSrc(null);
+    setFileName(null);
+    setStatus("idle");
+    setErrorMsg(null);
+    setProgress(0);
+    onRemoved();
+  };
+
+  const handleFiles = (files: FileList | null) => { if (files?.[0]) startUpload(files[0]); };
+
+  const onDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current++;
+    if (status === "idle") setStatus("dragging");
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    if (--dragCounter.current === 0 && status === "dragging") setStatus("idle");
+  };
+  const onDragOver = (e: React.DragEvent) => e.preventDefault();
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    dragCounter.current = 0;
+    handleFiles(e.dataTransfer.files);
+  };
+
+  // ── uploading / done ──────────────────────────────────────────────────────
+  if (status === "uploading" || status === "done") {
+    return (
+      <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.03] p-2.5">
+        <div className="relative h-16 w-16 flex-shrink-0 rounded-lg overflow-hidden bg-gray-200 dark:bg-white/[0.08]">
+          {previewSrc && <img src={previewSrc} alt="" className="h-full w-full object-cover" />}
+          {status === "uploading" && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <span className="text-white text-xs font-bold tabular-nums">{progress}%</span>
+            </div>
+          )}
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium text-gray-700 dark:text-gray-300 truncate">{fileName}</p>
+          {status === "uploading" ? (
+            <>
+              <div className="mt-1.5 h-1.5 w-full rounded-full bg-gray-200 dark:bg-white/[0.08] overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-brand-500 transition-[width] duration-150"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Uploading…</p>
+            </>
+          ) : (
+            <p className="text-xs text-emerald-500 mt-1 flex items-center gap-1">
+              <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round">
+                <path d="M20 6 9 17l-5-5" />
+              </svg>
+              Ready
+            </p>
+          )}
+        </div>
+        {status === "done" && (
+          <button
+            type="button"
+            onClick={handleRemove}
+            className="flex-shrink-0 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-white/[0.08] transition-colors"
+            aria-label="Remove image"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        )}
+      </div>
+    );
+  }
+
+  // ── error ─────────────────────────────────────────────────────────────────
+  if (status === "error") {
+    return (
+      <div className="rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/10 px-3 py-2.5 flex items-center gap-3">
+        <svg className="h-4 w-4 text-red-400 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+          <circle cx="12" cy="12" r="10" /><path d="M12 8v4m0 4h.01" />
+        </svg>
+        <p className="text-xs text-red-600 dark:text-red-400 flex-1">{errorMsg}</p>
+        <button
+          type="button"
+          onClick={() => { setStatus("idle"); setErrorMsg(null); fileInputRef.current?.click(); }}
+          className="text-xs font-semibold text-red-600 dark:text-red-400 hover:underline flex-shrink-0"
+        >
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  // ── idle / dragging ───────────────────────────────────────────────────────
+  return (
+    <div
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onClick={() => fileInputRef.current?.click()}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => e.key === "Enter" && fileInputRef.current?.click()}
+      aria-label="Upload image"
+      className={`rounded-xl border-2 border-dashed cursor-pointer transition-all py-5 flex flex-col items-center justify-center gap-1.5 select-none ${
+        status === "dragging"
+          ? "border-brand-500 bg-brand-500/5 scale-[1.01]"
+          : "border-gray-200 dark:border-white/[0.1] hover:border-brand-500/40 hover:bg-gray-50 dark:hover:bg-white/[0.02]"
+      }`}
+    >
+      <svg
+        className={`h-6 w-6 transition-colors ${status === "dragging" ? "text-brand-500" : "text-gray-300 dark:text-gray-600"}`}
+        viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} strokeLinecap="round" strokeLinejoin="round"
+      >
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <circle cx="8.5" cy="8.5" r="1.5" />
+        <path d="M21 15l-5-5L5 21" />
+      </svg>
+      <p className={`text-xs font-medium transition-colors ${status === "dragging" ? "text-brand-500" : "text-gray-400 dark:text-gray-500"}`}>
+        {status === "dragging" ? "Drop to upload" : "Drop an image or click to browse"}
+      </p>
+      <p className="text-xs text-gray-300 dark:text-gray-700">
+        JPEG, PNG, WebP, GIF · max {MAX_IMAGE_SIZE_MB} MB
+      </p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept={ACCEPTED_IMAGE_TYPES.join(",")}
+        className="sr-only"
+        onChange={(e) => handleFiles(e.target.files)}
+        // Reset value so the same file can be re-selected after removal
+        onClick={(e) => { (e.target as HTMLInputElement).value = ""; }}
+      />
+    </div>
+  );
+}
+
 // ─── Category Picker ──────────────────────────────────────────────────────────
 
 function CategoryPicker({
@@ -173,6 +406,10 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState<PostCategory | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  // Incrementing this key remounts ImageUploadZone, resetting its internal state
+  const [uploadKey, setUploadKey] = useState(0);
 
   // ── Link preview ─────────────────────────────────────────────────────────
   const [preview, setPreview] = useState<LinkPreviewResponse | null>(null);
@@ -239,6 +476,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
         body: body.trim(),
         ...(title.trim() && { title: title.trim() }),
         ...(url.trim() && { url: url.trim() }),
+        ...(imageUrl && { imageUrl }),
         category,
         ...(quotedPost && { quotedPostId: quotedPost.id }),
       });
@@ -260,6 +498,9 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
     setPreview(null);
     setPreviewDismissed(false);
     setSubmitError(null);
+    setImageUrl(null);
+    setIsUploading(false);
+    setUploadKey((k) => k + 1);
   };
 
   // Reset when modal opens; pre-fill category when quoting
@@ -281,7 +522,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
       ? "text-amber-500"
       : "text-gray-400 dark:text-gray-500";
 
-  const canSubmit = body.trim().length > 0 && category !== null && !submitting;
+  const canSubmit = body.trim().length > 0 && category !== null && !submitting && !isUploading;
 
   if (!mounted) return null;
 
@@ -402,6 +643,19 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
                   onDismiss={() => setPreviewDismissed(true)}
                 />
               )}
+            </div>
+
+            {/* Image upload */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">
+                Image <span className="text-gray-400 font-normal">— optional</span>
+              </p>
+              <ImageUploadZone
+                key={uploadKey}
+                onUploaded={setImageUrl}
+                onRemoved={() => setImageUrl(null)}
+                onUploadingChange={setIsUploading}
+              />
             </div>
 
             {/* Category */}

@@ -1,4 +1,5 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { CATEGORY_META, type Post, type LinkPreview } from "@ecfeed/shared";
 
@@ -155,6 +156,45 @@ function QuotedPostCard({ post }: { post: Post }) {
   );
 }
 
+// ─── Image Lightbox ───────────────────────────────────────────────────────────
+
+function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.removeEventListener("keydown", handler);
+      document.body.style.overflow = "";
+    };
+  }, [onClose]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 cursor-zoom-out animate-in fade-in duration-150"
+      onClick={onClose}
+    >
+      {/* Close button */}
+      <button
+        className="absolute top-4 right-4 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+        onClick={onClose}
+        aria-label="Close image"
+      >
+        <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round">
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
+      </button>
+      <img
+        src={src}
+        alt=""
+        className="max-w-full max-h-full object-contain rounded-xl shadow-2xl cursor-default"
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>,
+    document.body
+  );
+}
+
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 
 export interface PostCardProps {
@@ -168,6 +208,7 @@ export interface PostCardProps {
 export function PostCard({ post, onLike, onUnlike, onReply, onQuote }: PostCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
+  const [lightbox, setLightbox] = useState(false);
 
   const isTruncated = post.body.length > TRUNCATE_AT;
   const displayBody =
@@ -237,13 +278,25 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote }: PostCardP
             </button>
           )}
 
-          {/* Post image */}
+          {/* Post image — click to expand */}
           {post.imageUrl && (
-            <img
-              src={post.imageUrl}
-              alt=""
-              className="mt-3 rounded-xl max-h-80 w-full object-cover border border-gray-100 dark:border-white/[0.06]"
-            />
+            <>
+              <button
+                type="button"
+                onClick={() => setLightbox(true)}
+                className="mt-3 block w-full rounded-xl overflow-hidden border border-gray-100 dark:border-white/[0.06] cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                aria-label="View full image"
+              >
+                <img
+                  src={post.imageUrl}
+                  alt=""
+                  className="max-h-80 w-full object-cover"
+                />
+              </button>
+              {lightbox && (
+                <ImageLightbox src={post.imageUrl} onClose={() => setLightbox(false)} />
+              )}
+            </>
           )}
 
           {/* Link preview */}
