@@ -14,9 +14,7 @@ export default function Layout() {
         {/* Header */}
         <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3.5 border-b border-gray-100 dark:border-white/[0.06] bg-white/80 dark:bg-black/30 backdrop-blur-xl">
           <Link to="/" className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-500 flex items-center justify-center text-white font-extrabold text-sm">
-              E
-            </div>
+            <img src="/icon-192.png" alt="EC Feed" className="w-8 h-8 rounded-lg object-contain" />
             <span className="text-xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
               EC Feed
             </span>
