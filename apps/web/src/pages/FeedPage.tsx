@@ -125,6 +125,65 @@ function PostCardSkeleton() {
   );
 }
 
+// ─── usePullToRefresh ─────────────────────────────────────────────────────────
+
+const PULL_THRESHOLD = 72; // px of overscroll needed to trigger refresh
+
+function usePullToRefresh(onRefresh: () => void) {
+  const [pullY, setPullY] = useState(0);
+  const [refreshing, setRefreshing] = useState(false);
+  const startYRef = useRef<number | null>(null);
+  const pullingRef = useRef(false);
+
+  useEffect(() => {
+    const onTouchStart = (e: TouchEvent) => {
+      // Only activate when already at the top of the page
+      if (window.scrollY === 0) {
+        startYRef.current = e.touches[0].clientY;
+        pullingRef.current = false;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (startYRef.current === null || refreshing) return;
+      const delta = e.touches[0].clientY - startYRef.current;
+      if (delta > 0 && window.scrollY === 0) {
+        pullingRef.current = true;
+        // Dampen: feels like rubber-banding
+        setPullY(Math.min(delta * 0.45, PULL_THRESHOLD * 1.2));
+        if (delta > 10) e.preventDefault(); // stop native scroll bounce
+      }
+    };
+
+    const onTouchEnd = () => {
+      if (!pullingRef.current) return;
+      if (pullY >= PULL_THRESHOLD) {
+        setRefreshing(true);
+        onRefresh();
+        setTimeout(() => {
+          setRefreshing(false);
+          setPullY(0);
+        }, 1000);
+      } else {
+        setPullY(0);
+      }
+      startYRef.current = null;
+      pullingRef.current = false;
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove", onTouchMove, { passive: false });
+    document.addEventListener("touchend", onTouchEnd, { passive: true });
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove", onTouchMove);
+      document.removeEventListener("touchend", onTouchEnd);
+    };
+  }, [onRefresh, pullY, refreshing]);
+
+  return { pullY, refreshing };
+}
+
 // ─── FeedPage ─────────────────────────────────────────────────────────────────
 
 export default function FeedPage() {
@@ -134,6 +193,8 @@ export default function FeedPage() {
   const { user } = useAuth();
   const { items, loading, loadingMore, hasMore, error, loadMore, updatePost, prependPost, removePost, retry } =
     useFeed(activeFilter);
+
+  const { pullY, refreshing } = usePullToRefresh(retry);
 
   // Prepend new post when created via compose modal
   useEffect(() => {
@@ -298,8 +359,25 @@ export default function FeedPage() {
     );
   }
 
+  const pullProgress = Math.min(pullY / PULL_THRESHOLD, 1);
+
   return (
     <div>
+      {/* Pull-to-refresh indicator */}
+      {(pullY > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all duration-150"
+          style={{ height: refreshing ? 48 : pullY }}
+        >
+          <svg
+            className={`h-5 w-5 text-brand-500 ${refreshing ? "animate-spin" : ""}`}
+            style={{ opacity: pullProgress, transform: `rotate(${pullProgress * 180}deg)` }}
+            viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round"
+          >
+            <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+          </svg>
+        </div>
+      )}
       {filterBar}
       {content}
     </div>
