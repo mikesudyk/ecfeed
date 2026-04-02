@@ -82,6 +82,20 @@ export const users = {
     return request<PaginatedResponse<Post>>(`/api/users/${id}/posts?${query}`);
   },
 
+  replies: (id: string, params?: { cursor?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.cursor) query.set("cursor", params.cursor);
+    if (params?.limit) query.set("limit", String(params.limit));
+    return request<PaginatedResponse<Post>>(`/api/users/${id}/replies?${query}`);
+  },
+
+  likes: (id: string, params?: { cursor?: string; limit?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.cursor) query.set("cursor", params.cursor);
+    if (params?.limit) query.set("limit", String(params.limit));
+    return request<PaginatedResponse<Post>>(`/api/users/${id}/likes?${query}`);
+  },
+
   updateProfile: (input: UpdateProfileInput) =>
     request<User>("/api/users/me", { method: "PUT", body: JSON.stringify(input) }),
 };

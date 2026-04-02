@@ -73,6 +73,11 @@ export function optionalAuth(req: Request, res: Response, next: NextFunction): v
 // ─── Google OAuth setup ─────────────────────────────────────
 
 export function configurePassport(): void {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    console.warn("⚠️  Google OAuth not configured — auth routes will not work. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in .env");
+    return;
+  }
+
   passport.use(
     new GoogleStrategy(
       {

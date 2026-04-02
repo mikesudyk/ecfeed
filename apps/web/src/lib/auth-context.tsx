@@ -2,12 +2,13 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from "
 import type { User, AuthState } from "@ecfeed/shared";
 import { auth } from "./api";
 
-const AuthContext = createContext<AuthState & { login: () => void; logout: () => void }>({
+const AuthContext = createContext<AuthState & { login: () => void; logout: () => void; updateUser: (user: User) => void }>({
   user: null,
   isAuthenticated: false,
   isLoading: true,
   login: () => {},
   logout: () => {},
+  updateUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -31,6 +32,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   };
 
+  const updateUser = (updated: User) => setUser(updated);
+
   return (
     <AuthContext.Provider
       value={{
@@ -39,6 +42,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         isLoading,
         login,
         logout,
+        updateUser,
       }}
     >
       {children}

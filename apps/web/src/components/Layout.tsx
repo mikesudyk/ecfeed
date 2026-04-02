@@ -1,10 +1,12 @@
 import { Outlet, Link } from "react-router-dom";
 import { useAuth } from "../lib/auth-context";
 import { useTheme } from "../lib/theme-context";
+import { useCompose } from "../lib/compose-context";
 
 export default function Layout() {
   const { user, isAuthenticated, login, logout } = useAuth();
   const { theme, toggle } = useTheme();
+  const { openCompose } = useCompose();
 
   return (
     <div className="min-h-screen bg-white dark:bg-[#0a0a0f]">
@@ -31,7 +33,10 @@ export default function Layout() {
 
             {isAuthenticated ? (
               <>
-                <button className="px-4 py-2 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-shadow">
+                <button
+                  onClick={() => openCompose()}
+                  className="px-4 py-2 rounded-full bg-gradient-to-br from-indigo-500 to-purple-500 text-white text-sm font-bold shadow-lg shadow-indigo-500/20 hover:shadow-indigo-500/30 transition-shadow"
+                >
                   + New Post
                 </button>
                 <Link to={`/user/${user?.id}`}>
