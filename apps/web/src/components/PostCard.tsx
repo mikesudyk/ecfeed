@@ -1,7 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
 import { CATEGORY_META, type Post, type LinkPreview } from "@ecfeed/shared";
+import { useAuth } from "../lib/auth-context";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -195,6 +196,50 @@ function ImageLightbox({ src, onClose }: { src: string; onClose: () => void }) {
   );
 }
 
+// ─── Post Menu (owner-only "..." dropdown) ────────────────────────────────────
+
+function PostMenu({ onDelete }: { onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  return (
+    <div ref={ref} className="relative ml-auto">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="p-1 rounded-md text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors"
+        aria-label="Post options"
+      >
+        <svg className="h-4 w-4" viewBox="0 0 24 24" fill="currentColor">
+          <circle cx="5" cy="12" r="1.5" />
+          <circle cx="12" cy="12" r="1.5" />
+          <circle cx="19" cy="12" r="1.5" />
+        </svg>
+      </button>
+      {open && (
+        <div className="absolute right-0 top-7 z-20 w-36 rounded-xl border border-gray-100 dark:border-white/[0.08] bg-white dark:bg-[#18181f] shadow-lg py-1">
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onDelete(); }}
+            className="w-full text-left px-4 py-2 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+          >
+            Delete post
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PostCard ─────────────────────────────────────────────────────────────────
 
 export interface PostCardProps {
@@ -203,12 +248,16 @@ export interface PostCardProps {
   onUnlike?: (postId: string) => void;
   onReply?: (post: Post) => void;
   onQuote?: (post: Post) => void;
+  onDelete?: (postId: string) => void;
 }
 
-export function PostCard({ post, onLike, onUnlike, onReply, onQuote }: PostCardProps) {
+export function PostCard({ post, onLike, onUnlike, onReply, onQuote, onDelete }: PostCardProps) {
+  const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
   const [lightbox, setLightbox] = useState(false);
+
+  const isOwner = !!user && user.id === post.author.id;
 
   const isTruncated = post.body.length > TRUNCATE_AT;
   const displayBody =
@@ -236,7 +285,7 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote }: PostCardP
         {/* Content column */}
         <div className="flex-1 min-w-0">
           {/* Header row */}
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-1">
+          <div className="flex items-center gap-x-2 gap-y-1 mb-1 flex-wrap">
             <Link
               to={`/user/${post.author.id}`}
               className="text-sm font-semibold text-gray-900 dark:text-gray-100 hover:underline"
@@ -256,6 +305,9 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote }: PostCardP
               {relativeTime(post.createdAt)}
             </Link>
             <CategoryBadge category={post.category} />
+            {isOwner && onDelete && (
+              <PostMenu onDelete={() => onDelete(post.id)} />
+            )}
           </div>
 
           {/* Optional title */}

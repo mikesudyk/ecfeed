@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { CATEGORY_META, type Post, type PostCategory } from "@ecfeed/shared";
 import { posts as postsApi } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 import { useTheme } from "../lib/theme-context";
 import { useCompose } from "../lib/compose-context";
 import { PostCard } from "../components/PostCard";
@@ -84,7 +85,11 @@ function useFeed(category: Filter) {
     setItems((prev) => [post, ...prev]);
   }, []);
 
-  return { items, loading, loadingMore, hasMore, error, loadMore, updatePost, prependPost, retry: () => fetchPage(null, false) };
+  const removePost = useCallback((id: string) => {
+    setItems((prev) => prev.filter((p) => p.id !== id));
+  }, []);
+
+  return { items, loading, loadingMore, hasMore, error, loadMore, updatePost, prependPost, removePost, retry: () => fetchPage(null, false) };
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -126,7 +131,8 @@ export default function FeedPage() {
   const [activeFilter, setActiveFilter] = useState<Filter>("all");
   const { theme } = useTheme();
   const { openCompose, lastCreatedPost, consumeLastCreatedPost } = useCompose();
-  const { items, loading, loadingMore, hasMore, error, loadMore, updatePost, prependPost, retry } =
+  const { user } = useAuth();
+  const { items, loading, loadingMore, hasMore, error, loadMore, updatePost, prependPost, removePost, retry } =
     useFeed(activeFilter);
 
   // Prepend new post when created via compose modal
@@ -164,6 +170,18 @@ export default function FeedPage() {
       }
     },
     [updatePost]
+  );
+
+  const handleDelete = useCallback(
+    async (postId: string) => {
+      removePost(postId); // optimistic
+      try {
+        await postsApi.delete(postId);
+      } catch {
+        retry(); // revert by re-fetching on failure
+      }
+    },
+    [removePost, retry]
   );
 
   // ── Filter bar ────────────────────────────────────────────────────────────
@@ -245,6 +263,7 @@ export default function FeedPage() {
             onLike={handleLike}
             onUnlike={handleUnlike}
             onQuote={openCompose}
+            onDelete={user ? handleDelete : undefined}
           />
         ))}
 
