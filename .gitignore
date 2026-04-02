@@ -7,3 +7,6 @@ dist/
 coverage/
 playwright-report/
 test-results/
+apps/web/dist
+apps/web/tsconfig.tsbuildinfo
+apps/api/dist
