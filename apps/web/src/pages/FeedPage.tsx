@@ -11,12 +11,12 @@ import { PostCard } from "../components/PostCard";
 type Filter = "all" | PostCategory;
 
 const FILTERS: Array<{ key: Filter; label: string }> = [
-  { key: "all", label: "All" },
-  { key: "dev", label: "Dev" },
-  { key: "ai", label: "AI" },
-  { key: "sales_marketing", label: "Sales & Marketing" },
-  { key: "design", label: "Design" },
-  { key: "other", label: "Other" },
+  { key: "all", label: "🌐 All" },
+  { key: "dev", label: "🛠️ Dev" },
+  { key: "ai", label: "🤖 AI" },
+  { key: "sales_marketing", label: "🚀 Sales & Marketing" },
+  { key: "design", label: "🎨 Design" },
+  { key: "other", label: "💬 Other" },
 ];
 
 // ─── useFeed hook ─────────────────────────────────────────────────────────────
