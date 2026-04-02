@@ -10,3 +10,4 @@ test-results/
 apps/web/dist
 apps/web/tsconfig.tsbuildinfo
 apps/api/dist
+packages/shared/dist
