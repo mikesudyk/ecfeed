@@ -6,12 +6,28 @@ import pool from "../db/pool.js";
 const router = Router();
 
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
+
+// In production the API (api.ecfeed.com) and frontend (ecfeed.com) are on
+// different subdomains. Setting domain to the parent domain lets the browser
+// attach the cookie to requests from ecfeed.com → api.ecfeed.com.
+function cookieDomain(): string | undefined {
+  if (process.env.NODE_ENV !== "production") return undefined;
+  try {
+    const hostname = new URL(FRONTEND_URL).hostname; // "ecfeed.com"
+    const parts = hostname.split(".");
+    return "." + parts.slice(-2).join("."); // ".ecfeed.com"
+  } catch {
+    return undefined;
+  }
+}
+
 const COOKIE_OPTS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
   sameSite: "lax" as const,
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   path: "/",
+  domain: cookieDomain(),
 };
 
 // Initiate Google OAuth
@@ -79,7 +95,7 @@ router.get("/me", requireAuth, async (req: Request, res: Response) => {
 
 // Logout
 router.post("/logout", (_req: Request, res: Response) => {
-  res.clearCookie("token", { path: "/" });
+  res.clearCookie("token", { path: "/", domain: cookieDomain() });
   res.json({ message: "Logged out" });
 });
 
