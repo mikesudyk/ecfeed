@@ -120,6 +120,7 @@ export function configurePassport(): void {
             avatarUrl: user.avatar_url,
           });
         } catch (err) {
+          console.error("Passport Google strategy error:", err);
           return done(err as Error);
         }
       }

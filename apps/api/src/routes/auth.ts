@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import passport from "passport";
 import { signToken, requireAuth } from "../middleware/auth.js";
 import pool from "../db/pool.js";
@@ -26,19 +26,23 @@ router.get(
 // Google OAuth callback
 router.get(
   "/google/callback",
-  passport.authenticate("google", {
-    session: false,
-    failureRedirect: `${FRONTEND_URL}?auth_error=domain_not_allowed`,
-  }),
-  (req: Request, res: Response) => {
-    if (!req.user) {
-      res.redirect(`${FRONTEND_URL}?auth_error=no_user`);
-      return;
-    }
-
-    const token = signToken({ userId: req.user.id, email: req.user.email });
-    res.cookie("token", token, COOKIE_OPTS);
-    res.redirect(FRONTEND_URL);
+  (req: Request, res: Response, next: NextFunction) => {
+    passport.authenticate(
+      "google",
+      { session: false },
+      (err: Error | null, user: Express.User | false) => {
+        if (err) {
+          console.error("OAuth callback error:", err);
+          return next(err);
+        }
+        if (!user) {
+          return res.redirect(`${FRONTEND_URL}?auth_error=domain_not_allowed`);
+        }
+        const token = signToken({ userId: user.id, email: user.email });
+        res.cookie("token", token, COOKIE_OPTS);
+        res.redirect(FRONTEND_URL);
+      }
+    )(req, res, next);
   }
 );
 
