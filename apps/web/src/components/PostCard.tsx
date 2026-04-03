@@ -49,6 +49,33 @@ export function initials(name: string): string {
 
 const TRUNCATE_AT = 280;
 
+const URL_RE = /https?:\/\/[^\s<>"]+[^\s<>".,;:!?)'"\]]/g;
+
+function linkifyBody(text: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  let last = 0;
+  let match: RegExpExecArray | null;
+  URL_RE.lastIndex = 0;
+  while ((match = URL_RE.exec(text)) !== null) {
+    if (match.index > last) parts.push(text.slice(last, match.index));
+    parts.push(
+      <a
+        key={match.index}
+        href={match[0]}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-brand-500 hover:underline break-all"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {match[0]}
+      </a>
+    );
+    last = match.index + match[0].length;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts;
+}
+
 // ─── Avatar ──────────────────────────────────────────────────────────────────
 
 export interface AvatarProps {
@@ -319,7 +346,7 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote, onDelete }:
 
           {/* Body */}
           <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap break-words">
-            {displayBody}
+            {linkifyBody(displayBody)}
           </p>
           {isTruncated && (
             <button

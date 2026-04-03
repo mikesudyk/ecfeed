@@ -438,6 +438,13 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
   // Reset dismissed flag when URL changes
   useEffect(() => { setPreviewDismissed(false); }, [url]);
 
+  // Auto-detect first URL pasted in the body and populate the URL field
+  useEffect(() => {
+    if (url || previewDismissed) return; // don't override if user already set one
+    const match = body.match(URL_RE);
+    if (match) setUrl(match[0]);
+  }, [body]);
+
   // ── Auto-resize textarea ─────────────────────────────────────────────────
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
