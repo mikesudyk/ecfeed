@@ -68,16 +68,30 @@ router.post("/link-preview", requireAuth, validateBody(linkPreviewSchema), async
 
     // Fetch OG data
     // Dynamic import for open-graph-scraper (ESM)
+    console.log(`[link-preview] fetching OG data for: ${url}`);
     const ogs = (await import("open-graph-scraper")).default;
-    const { result } = await ogs({ url, timeout: 5000 });
+    const { result, error: ogsError } = await ogs({ url, timeout: 8000 });
+
+    if (ogsError) {
+      console.warn(`[link-preview] OGS error for ${url}:`, result);
+    }
+
+    // Resolve relative image URLs against the target URL's origin
+    let imageUrl = result.ogImage?.[0]?.url || null;
+    if (imageUrl && imageUrl.startsWith("/")) {
+      try {
+        imageUrl = new URL(imageUrl, url).href;
+      } catch { imageUrl = null; }
+    }
 
     const preview = {
       title: result.ogTitle || result.dcTitle || null,
       description: result.ogDescription || result.dcDescription || null,
-      imageUrl: result.ogImage?.[0]?.url || null,
+      imageUrl,
       siteName: result.ogSiteName || null,
       faviconUrl: result.favicon || null,
     };
+    console.log(`[link-preview] result for ${url}:`, preview);
 
     // Cache it
     await pool.query(
