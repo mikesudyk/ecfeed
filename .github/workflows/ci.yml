@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-api:
+    name: API tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build shared
+        run: npm run build --workspace=packages/shared
+
+      - name: Run API tests
+        run: npm test --workspace=apps/api
+        env:
+          NODE_ENV: test
+          JWT_SECRET: test-secret-do-not-use-in-prod
+          ALLOWED_DOMAIN: ecgroup-intl.com
+
+  test-web:
+    name: Web tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build shared
+        run: npm run build --workspace=packages/shared
+
+      - name: Run web tests
+        run: npm test --workspace=apps/web
+
+  build:
+    name: Build check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build shared
+        run: npm run build --workspace=packages/shared
+
+      - name: Build API
+        run: npm run build --workspace=apps/api
+
+      - name: Build web
+        run: npm run build --workspace=apps/web
+        env:
+          VITE_API_URL: https://api.ecfeed.com
