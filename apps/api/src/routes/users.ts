@@ -109,35 +109,116 @@ router.get("/:id/posts", optionalAuth, validateQuery(paginationSchema), async (r
   }
 });
 
+// ─── Shared post query helpers (mirrors posts router) ────────
+
+function postSelect(viewerUserId?: string): string {
+  return `
+    SELECT
+      p.*,
+      u.display_name AS author_display_name,
+      u.avatar_url   AS author_avatar_url,
+      u.email        AS author_email,
+      u.role_title   AS author_role_title,
+      qp.body        AS qp_body,
+      qp.title       AS qp_title,
+      qp.author_id   AS qp_author_id,
+      qp.created_at  AS qp_created_at,
+      qu.display_name AS qp_author_name,
+      qu.avatar_url   AS qp_author_avatar,
+      lp.url          AS lp_url,
+      lp.title        AS lp_title,
+      lp.description  AS lp_description,
+      lp.image_url    AS lp_image_url,
+      lp.site_name    AS lp_site_name,
+      lp.favicon_url  AS lp_favicon_url
+      ${viewerUserId ? `, EXISTS(SELECT 1 FROM likes l2 WHERE l2.post_id = p.id AND l2.user_id = '${viewerUserId}') AS liked_by_me` : ""}
+    FROM posts p
+    JOIN users u ON p.author_id = u.id
+    LEFT JOIN posts qp ON p.quoted_post_id = qp.id
+    LEFT JOIN users qu ON qp.author_id = qu.id
+    LEFT JOIN link_previews lp ON p.url = lp.url
+  `;
+}
+
+function formatPost(row: any, viewerUserId?: string): any {
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    author: {
+      id: row.author_id,
+      displayName: row.author_display_name,
+      avatarUrl: row.author_avatar_url,
+      email: row.author_email,
+      roleTitle: row.author_role_title,
+    },
+    parentId: row.parent_id,
+    quotedPostId: row.quoted_post_id,
+    quotedPost: row.quoted_post_id
+      ? {
+          id: row.quoted_post_id,
+          body: row.qp_body,
+          title: row.qp_title,
+          author: {
+            id: row.qp_author_id,
+            displayName: row.qp_author_name,
+            avatarUrl: row.qp_author_avatar,
+          },
+          createdAt: row.qp_created_at,
+        }
+      : null,
+    title: row.title,
+    body: row.body,
+    url: row.url,
+    imageUrl: row.image_url,
+    category: row.category,
+    depth: row.depth,
+    replyCount: parseInt(row.reply_count, 10),
+    likeCount: parseInt(row.like_count, 10),
+    likedByMe: row.liked_by_me || false,
+    linkPreview: row.lp_url
+      ? {
+          url: row.lp_url,
+          title: row.lp_title,
+          description: row.lp_description,
+          imageUrl: row.lp_image_url,
+          siteName: row.lp_site_name,
+          faviconUrl: row.lp_favicon_url,
+        }
+      : null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
 // ─── Get user's replies (public) ────────────────────────────
 
-router.get("/:id/replies", validateQuery(paginationSchema), async (req: Request, res: Response) => {
+router.get("/:id/replies", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response) => {
   try {
     const { cursor, limit } = req.query as any;
+    const viewerUserId = req.user?.id;
     const params: any[] = [req.params.id];
     let paramIndex = 2;
 
     let whereClause = "WHERE p.author_id = $1 AND p.parent_id IS NOT NULL";
-
     if (cursor) {
       whereClause += ` AND p.created_at < $${paramIndex++}`;
       params.push(cursor);
     }
-
     params.push(limit + 1);
 
     const result = await pool.query(
-      `SELECT p.*, u.display_name AS author_display_name, u.avatar_url AS author_avatar_url
-       FROM posts p JOIN users u ON p.author_id = u.id
-       ${whereClause}
-       ORDER BY p.created_at DESC LIMIT $${paramIndex}`,
+      `${postSelect(viewerUserId)} ${whereClause} ORDER BY p.created_at DESC LIMIT $${paramIndex}`,
       params
     );
 
     const hasMore = result.rows.length > limit;
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
-    res.json({ data: rows, cursor: rows.length > 0 ? rows[rows.length - 1].created_at : null, hasMore });
+    res.json({
+      data: rows.map((r) => formatPost(r, viewerUserId)),
+      cursor: rows.length > 0 ? rows[rows.length - 1].created_at : null,
+      hasMore,
+    });
   } catch (err) {
     console.error("Error listing user replies:", err);
     res.status(500).json({ error: "internal_error", message: "Failed to list replies", statusCode: 500 });
@@ -146,28 +227,24 @@ router.get("/:id/replies", validateQuery(paginationSchema), async (req: Request,
 
 // ─── Get posts user has liked (public) ──────────────────────
 
-router.get("/:id/likes", validateQuery(paginationSchema), async (req: Request, res: Response) => {
+router.get("/:id/likes", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response) => {
   try {
     const { cursor, limit } = req.query as any;
+    const viewerUserId = req.user?.id;
     const params: any[] = [req.params.id];
     let paramIndex = 2;
 
-    let whereClause = "";
+    let cursorClause = "";
     if (cursor) {
-      whereClause = `AND l.created_at < $${paramIndex++}`;
+      cursorClause = `AND l.created_at < $${paramIndex++}`;
       params.push(cursor);
     }
-
     params.push(limit + 1);
 
     const result = await pool.query(
-      `SELECT p.*, l.created_at AS liked_at,
-        u.display_name AS author_display_name, u.avatar_url AS author_avatar_url,
-        u.email AS author_email
-       FROM likes l
-       JOIN posts p ON l.post_id = p.id
-       JOIN users u ON p.author_id = u.id
-       WHERE l.user_id = $1 ${whereClause}
+      `${postSelect(viewerUserId)}
+       JOIN likes l ON l.post_id = p.id
+       WHERE l.user_id = $1 ${cursorClause}
        ORDER BY l.created_at DESC LIMIT $${paramIndex}`,
       params
     );
@@ -175,7 +252,11 @@ router.get("/:id/likes", validateQuery(paginationSchema), async (req: Request, r
     const hasMore = result.rows.length > limit;
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
-    res.json({ data: rows, cursor: rows.length > 0 ? rows[rows.length - 1].liked_at : null, hasMore });
+    res.json({
+      data: rows.map((r) => formatPost(r, viewerUserId)),
+      cursor: rows.length > 0 ? rows[rows.length - 1].created_at : null,
+      hasMore,
+    });
   } catch (err) {
     console.error("Error listing liked posts:", err);
     res.status(500).json({ error: "internal_error", message: "Failed to list likes", statusCode: 500 });
