@@ -5,7 +5,7 @@ import { posts as postsApi } from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 import { useCompose } from "../lib/compose-context";
 import { PostCard } from "../components/PostCard";
-import { Avatar, relativeTime, avatarColor, initials } from "../components/PostCard";
+import { Avatar, relativeTime, avatarColor, initials, linkifyBody } from "../components/PostCard";
 
 // ─── Tree ─────────────────────────────────────────────────────────────────────
 
@@ -301,7 +301,7 @@ function ReplyCard({
                 @{parentAuthorName}
               </span>
             )}
-            {displayBody}
+            {linkifyBody(displayBody)}
           </p>
           {isTruncated && (
             <button

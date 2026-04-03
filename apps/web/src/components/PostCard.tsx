@@ -51,7 +51,7 @@ const TRUNCATE_AT = 280;
 
 const URL_RE = /https?:\/\/[^\s<>"]+[^\s<>".,;:!?)'"\]]/g;
 
-function linkifyBody(text: string): React.ReactNode[] {
+export function linkifyBody(text: string): React.ReactNode[] {
   const parts: React.ReactNode[] = [];
   let last = 0;
   let match: RegExpExecArray | null;
@@ -378,8 +378,20 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote, onDelete }:
             </>
           )}
 
-          {/* Link preview */}
-          {post.linkPreview && <LinkPreviewCard preview={post.linkPreview} />}
+          {/* Link preview — or bare link if preview unavailable */}
+          {post.linkPreview ? (
+            <LinkPreviewCard preview={post.linkPreview} />
+          ) : post.url && !post.body.includes(post.url) ? (
+            <a
+              href={post.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 inline-block text-sm text-brand-500 hover:underline break-all"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {post.url}
+            </a>
+          ) : null}
 
           {/* Quoted post */}
           {post.quotedPost && <QuotedPostCard post={post.quotedPost} />}
