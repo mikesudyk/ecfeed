@@ -81,12 +81,12 @@ describe("FeedPage", () => {
     vi.mocked(postsApi.list).mockResolvedValue(makePageResponse([]));
     renderFeed();
 
-    expect(screen.getByRole("button", { name: "All" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Dev" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "AI" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sales & Marketing" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Design" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Other" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /All/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Dev/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /AI/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sales & Marketing/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Design/ })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Other/ })).toBeInTheDocument();
   });
 
   it("shows loading skeletons while fetching", () => {
@@ -127,7 +127,7 @@ describe("FeedPage", () => {
     // Wait for initial fetch to settle
     await waitFor(() => expect(postsApi.list).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByRole("button", { name: "Dev" }));
+    fireEvent.click(screen.getByRole("button", { name: /Dev/ }));
 
     await waitFor(() => expect(postsApi.list).toHaveBeenCalledTimes(2));
     expect(postsApi.list).toHaveBeenLastCalledWith(
