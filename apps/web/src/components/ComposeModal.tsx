@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   CATEGORY_META, POST_CATEGORIES, MAX_BODY_LENGTH, MAX_TITLE_LENGTH,
   MAX_IMAGE_SIZE_MB, ACCEPTED_IMAGE_TYPES,
-  type Post, type PostCategory, type LinkPreviewResponse,
+  type Post, type PostCategory, type PostVisibility, type LinkPreviewResponse,
 } from "@ecfeed/shared";
 import { posts as postsApi, uploads } from "../lib/api";
 import { Avatar, relativeTime } from "./PostCard";
@@ -406,6 +406,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
   const [category, setCategory] = useState<PostCategory | null>(null);
+  const [visibility, setVisibility] = useState<PostVisibility>("public");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   // Incrementing this key remounts ImageUploadZone, resetting its internal state
@@ -485,6 +486,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
         ...(url.trim() && { url: url.trim() }),
         ...(imageUrl && { imageUrl }),
         category,
+        visibility,
         ...(quotedPost && { quotedPostId: quotedPost.id }),
       });
       resetForm();
@@ -502,6 +504,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
     setTitle("");
     setUrl("");
     setCategory(null);
+    setVisibility("public");
     setPreview(null);
     setPreviewDismissed(false);
     setSubmitError(null);
@@ -671,6 +674,48 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
                 Category <span className="text-red-400">*</span>
               </p>
               <CategoryPicker value={category} onChange={setCategory} />
+            </div>
+
+            {/* Visibility */}
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2">Visibility</p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setVisibility("public")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    visibility === "public"
+                      ? "bg-emerald-500 text-white shadow-sm"
+                      : "bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
+                  }`}
+                >
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+                  </svg>
+                  Public
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVisibility("team_only")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
+                    visibility === "team_only"
+                      ? "bg-amber-500 text-white shadow-sm"
+                      : "bg-gray-100 dark:bg-white/[0.06] text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-white/10"
+                  }`}
+                >
+                  <svg className="h-3 w-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  Team only
+                </button>
+              </div>
+              {visibility === "team_only" && (
+                <p className="mt-1.5 text-xs text-amber-500 dark:text-amber-400">
+                  Only visible to @ecgroup-intl.com members
+                </p>
+              )}
             </div>
 
             {/* Submit error */}

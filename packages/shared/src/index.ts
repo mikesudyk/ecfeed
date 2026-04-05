@@ -2,6 +2,10 @@
 export const POST_CATEGORIES = ["dev", "ai", "sales_marketing", "design", "other"] as const;
 export type PostCategory = (typeof POST_CATEGORIES)[number];
 
+// ─── Visibility ──────────────────────────────────────────────
+export const POST_VISIBILITY = ["public", "team_only"] as const;
+export type PostVisibility = (typeof POST_VISIBILITY)[number];
+
 export const CATEGORY_META: Record<PostCategory, { label: string; color: string }> = {
   dev: { label: "Dev", color: "#3b82f6" },
   ai: { label: "AI", color: "#8b5cf6" },
@@ -46,6 +50,7 @@ export interface Post {
   url: string | null;
   imageUrl: string | null;
   category: PostCategory;
+  visibility: PostVisibility;
   depth: number;
   replyCount: number;
   likeCount: number;
@@ -61,6 +66,7 @@ export interface CreatePostInput {
   url?: string;
   imageUrl?: string;
   category: PostCategory;
+  visibility?: PostVisibility;
   quotedPostId?: string;
 }
 

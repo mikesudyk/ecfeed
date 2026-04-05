@@ -9,7 +9,11 @@ import {
   paginationSchema,
 } from "../middleware/validation.js";
 import { AppError } from "../middleware/errors.js";
-import { MAX_REPLY_DEPTH } from "@ecfeed/shared";
+import { MAX_REPLY_DEPTH, ALLOWED_DOMAIN } from "@ecfeed/shared";
+
+function isTeamMember(email?: string): boolean {
+  return !!email?.endsWith(`@${ALLOWED_DOMAIN}`);
+}
 import pool from "../db/pool.js";
 
 const router = Router();
@@ -47,6 +51,7 @@ function formatPost(row: any, userId?: string): any {
     url: row.url,
     imageUrl: row.image_url,
     category: row.category,
+    visibility: row.visibility,
     depth: row.depth,
     replyCount: parseInt(row.reply_count, 10),
     likeCount: parseInt(row.like_count, 10),
@@ -108,6 +113,10 @@ router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Reque
     const params: any[] = [];
     let paramIndex = 1;
 
+    if (!isTeamMember(req.user?.email)) {
+      whereClause += " AND p.visibility = 'public'";
+    }
+
     if (category) {
       whereClause += ` AND p.category = $${paramIndex++}`;
       params.push(category);
@@ -158,6 +167,11 @@ router.get("/:id", optionalAuth, async (req: Request, res: Response, next: NextF
       return;
     }
 
+    if (postResult.rows[0].visibility === "team_only" && !isTeamMember(req.user?.email)) {
+      res.status(403).json({ error: "forbidden", message: "This post is only visible to team members", statusCode: 403 });
+      return;
+    }
+
     // Fetch replies (ordered by created_at, all depths)
     const repliesResult = await pool.query(
       `${postQuery(userId)}
@@ -186,7 +200,7 @@ router.get("/:id", optionalAuth, async (req: Request, res: Response, next: NextF
 
 router.post("/", requireAuth, validateBody(createPostSchema), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { title, body, url, imageUrl, category, quotedPostId } = req.body;
+    const { title, body, url, imageUrl, category, visibility, quotedPostId } = req.body;
     const userId = req.user!.id;
 
     // If quoting, verify the quoted post exists
@@ -198,10 +212,10 @@ router.post("/", requireAuth, validateBody(createPostSchema), async (req: Reques
     }
 
     const result = await pool.query(
-      `INSERT INTO posts (author_id, title, body, url, image_url, category, quoted_post_id, depth)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, 0)
+      `INSERT INTO posts (author_id, title, body, url, image_url, category, quoted_post_id, depth, visibility)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 0, $8)
        RETURNING *`,
-      [userId, title || null, body, url || null, imageUrl || null, category, quotedPostId || null]
+      [userId, title || null, body, url || null, imageUrl || null, category, quotedPostId || null, visibility ?? "public"]
     );
 
     // Re-fetch with joins
@@ -313,15 +327,16 @@ router.post("/:id/replies", requireAuth, validateBody(createReplySchema), async 
       throw new AppError(400, "bad_request", `Maximum reply depth of ${MAX_REPLY_DEPTH} reached`);
     }
 
-    // Inherit category from the root post
-    const rootPost = await pool.query("SELECT category FROM posts WHERE id = $1", [postId]);
+    // Inherit category and visibility from the root post
+    const rootPost = await pool.query("SELECT category, visibility FROM posts WHERE id = $1", [postId]);
     const category = rootPost.rows[0].category;
+    const visibility = rootPost.rows[0].visibility;
 
     const result = await pool.query(
-      `INSERT INTO posts (author_id, parent_id, body, category, depth)
-       VALUES ($1, $2, $3, $4, $5)
+      `INSERT INTO posts (author_id, parent_id, body, category, depth, visibility)
+       VALUES ($1, $2, $3, $4, $5, $6)
        RETURNING *`,
-      [userId, replyToId, body, category, newDepth]
+      [userId, replyToId, body, category, newDepth, visibility]
     );
 
     // Increment reply_count on the parent

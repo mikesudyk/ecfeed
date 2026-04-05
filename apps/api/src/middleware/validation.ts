@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import {
   POST_CATEGORIES,
+  POST_VISIBILITY,
   MAX_BODY_LENGTH,
   MAX_TITLE_LENGTH,
   MAX_BIO_LENGTH,
@@ -16,6 +17,7 @@ export const createPostSchema = z.object({
   url: z.string().url().max(2048).optional(),
   imageUrl: z.string().url().max(2048).optional(),
   category: z.enum(POST_CATEGORIES),
+  visibility: z.enum(POST_VISIBILITY).default("public"),
   quotedPostId: z.string().uuid().optional(),
 });
 

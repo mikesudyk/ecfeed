@@ -2,7 +2,12 @@ import { Router, Request, Response, NextFunction } from "express";
 import { requireAuth, optionalAuth } from "../middleware/auth.js";
 import { validateBody, validateQuery, updateProfileSchema, paginationSchema } from "../middleware/validation.js";
 import { AppError } from "../middleware/errors.js";
+import { ALLOWED_DOMAIN } from "@ecfeed/shared";
 import pool from "../db/pool.js";
+
+function isTeamMember(email?: string): boolean {
+  return !!email?.endsWith(`@${ALLOWED_DOMAIN}`);
+}
 
 const router = Router();
 
@@ -54,6 +59,10 @@ router.get("/:id/posts", optionalAuth, validateQuery(paginationSchema), async (r
     let paramIndex = 2;
 
     let whereClause = "WHERE p.author_id = $1 AND p.parent_id IS NULL";
+
+    if (!isTeamMember(req.user?.email)) {
+      whereClause += " AND p.visibility = 'public'";
+    }
 
     if (cursor) {
       whereClause += ` AND p.created_at < $${paramIndex++}`;
@@ -171,6 +180,7 @@ function formatPost(row: any, viewerUserId?: string): any {
     url: row.url,
     imageUrl: row.image_url,
     category: row.category,
+    visibility: row.visibility,
     depth: row.depth,
     replyCount: parseInt(row.reply_count, 10),
     likeCount: parseInt(row.like_count, 10),
@@ -200,6 +210,11 @@ router.get("/:id/replies", optionalAuth, validateQuery(paginationSchema), async 
     let paramIndex = 2;
 
     let whereClause = "WHERE p.author_id = $1 AND p.parent_id IS NOT NULL";
+
+    if (!isTeamMember(req.user?.email)) {
+      whereClause += " AND p.visibility = 'public'";
+    }
+
     if (cursor) {
       whereClause += ` AND p.created_at < $${paramIndex++}`;
       params.push(cursor);
@@ -234,6 +249,8 @@ router.get("/:id/likes", optionalAuth, validateQuery(paginationSchema), async (r
     const params: any[] = [req.params.id];
     let paramIndex = 2;
 
+    const visibilityClause = isTeamMember(req.user?.email) ? "" : "AND p.visibility = 'public'";
+
     let cursorClause = "";
     if (cursor) {
       cursorClause = `AND l.created_at < $${paramIndex++}`;
@@ -244,7 +261,7 @@ router.get("/:id/likes", optionalAuth, validateQuery(paginationSchema), async (r
     const result = await pool.query(
       `${postSelect(viewerUserId)}
        JOIN likes l ON l.post_id = p.id
-       WHERE l.user_id = $1 ${cursorClause}
+       WHERE l.user_id = $1 ${visibilityClause} ${cursorClause}
        ORDER BY l.created_at DESC LIMIT $${paramIndex}`,
       params
     );
