@@ -54,11 +54,11 @@ router.get("/:id", async (req: Request, res: Response) => {
 router.get("/:id/posts", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response) => {
   try {
     const { cursor, limit } = req.query as any;
-    const userId = req.user?.id;
-    const params: any[] = [req.params.id];
-    let paramIndex = 2;
+    // $1 = viewer (for liked_by_me), $2 = profile user id
+    const params: any[] = [req.user?.id ?? null, req.params.id];
+    let paramIndex = 3;
 
-    let whereClause = "WHERE p.author_id = $1 AND p.parent_id IS NULL";
+    let whereClause = "WHERE p.author_id = $2 AND p.parent_id IS NULL";
 
     if (!isTeamMember(req.user?.email)) {
       whereClause += " AND p.visibility = 'public'";
@@ -76,8 +76,8 @@ router.get("/:id/posts", optionalAuth, validateQuery(paginationSchema), async (r
         u.display_name AS author_display_name,
         u.avatar_url AS author_avatar_url,
         u.email AS author_email,
-        u.role_title AS author_role_title
-        ${userId ? `, EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = '${userId}') AS liked_by_me` : ""}
+        u.role_title AS author_role_title,
+        EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = $1) AS liked_by_me
        FROM posts p
        JOIN users u ON p.author_id = u.id
        ${whereClause}
@@ -119,8 +119,9 @@ router.get("/:id/posts", optionalAuth, validateQuery(paginationSchema), async (r
 });
 
 // ─── Shared post query helpers (mirrors posts router) ────────
+// $1 is always the viewer's user id (or NULL). All other params start at $2.
 
-function postSelect(viewerUserId?: string): string {
+function postSelect(): string {
   return `
     SELECT
       p.*,
@@ -139,8 +140,8 @@ function postSelect(viewerUserId?: string): string {
       lp.description  AS lp_description,
       lp.image_url    AS lp_image_url,
       lp.site_name    AS lp_site_name,
-      lp.favicon_url  AS lp_favicon_url
-      ${viewerUserId ? `, EXISTS(SELECT 1 FROM likes l2 WHERE l2.post_id = p.id AND l2.user_id = '${viewerUserId}') AS liked_by_me` : ""}
+      lp.favicon_url  AS lp_favicon_url,
+      EXISTS(SELECT 1 FROM likes l2 WHERE l2.post_id = p.id AND l2.user_id = $1) AS liked_by_me
     FROM posts p
     JOIN users u ON p.author_id = u.id
     LEFT JOIN posts qp ON p.quoted_post_id = qp.id
@@ -149,7 +150,7 @@ function postSelect(viewerUserId?: string): string {
   `;
 }
 
-function formatPost(row: any, viewerUserId?: string): any {
+function formatPost(row: any): any {
   return {
     id: row.id,
     authorId: row.author_id,
@@ -205,11 +206,11 @@ function formatPost(row: any, viewerUserId?: string): any {
 router.get("/:id/replies", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response) => {
   try {
     const { cursor, limit } = req.query as any;
-    const viewerUserId = req.user?.id;
-    const params: any[] = [req.params.id];
-    let paramIndex = 2;
+    // $1 = viewer, $2 = profile user id
+    const params: any[] = [req.user?.id ?? null, req.params.id];
+    let paramIndex = 3;
 
-    let whereClause = "WHERE p.author_id = $1 AND p.parent_id IS NOT NULL";
+    let whereClause = "WHERE p.author_id = $2 AND p.parent_id IS NOT NULL";
 
     if (!isTeamMember(req.user?.email)) {
       whereClause += " AND p.visibility = 'public'";
@@ -222,7 +223,7 @@ router.get("/:id/replies", optionalAuth, validateQuery(paginationSchema), async 
     params.push(limit + 1);
 
     const result = await pool.query(
-      `${postSelect(viewerUserId)} ${whereClause} ORDER BY p.created_at DESC LIMIT $${paramIndex}`,
+      `${postSelect()} ${whereClause} ORDER BY p.created_at DESC LIMIT $${paramIndex}`,
       params
     );
 
@@ -230,7 +231,7 @@ router.get("/:id/replies", optionalAuth, validateQuery(paginationSchema), async 
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
     res.json({
-      data: rows.map((r) => formatPost(r, viewerUserId)),
+      data: rows.map((r) => formatPost(r)),
       cursor: rows.length > 0 ? rows[rows.length - 1].created_at : null,
       hasMore,
     });
@@ -245,9 +246,9 @@ router.get("/:id/replies", optionalAuth, validateQuery(paginationSchema), async 
 router.get("/:id/likes", optionalAuth, validateQuery(paginationSchema), async (req: Request, res: Response) => {
   try {
     const { cursor, limit } = req.query as any;
-    const viewerUserId = req.user?.id;
-    const params: any[] = [req.params.id];
-    let paramIndex = 2;
+    // $1 = viewer (for liked_by_me), $2 = profile user id
+    const params: any[] = [req.user?.id ?? null, req.params.id];
+    let paramIndex = 3;
 
     const visibilityClause = isTeamMember(req.user?.email) ? "" : "AND p.visibility = 'public'";
 
@@ -259,9 +260,9 @@ router.get("/:id/likes", optionalAuth, validateQuery(paginationSchema), async (r
     params.push(limit + 1);
 
     const result = await pool.query(
-      `${postSelect(viewerUserId)}
+      `${postSelect()}
        JOIN likes l ON l.post_id = p.id
-       WHERE l.user_id = $1 ${visibilityClause} ${cursorClause}
+       WHERE l.user_id = $2 ${visibilityClause} ${cursorClause}
        ORDER BY l.created_at DESC LIMIT $${paramIndex}`,
       params
     );
@@ -270,7 +271,7 @@ router.get("/:id/likes", optionalAuth, validateQuery(paginationSchema), async (r
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
     res.json({
-      data: rows.map((r) => formatPost(r, viewerUserId)),
+      data: rows.map((r) => formatPost(r)),
       cursor: rows.length > 0 ? rows[rows.length - 1].created_at : null,
       hasMore,
     });

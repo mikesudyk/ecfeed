@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import passport from "passport";
+import rateLimit from "express-rate-limit";
 
 import { configurePassport } from "./middleware/auth.js";
 import { notFound, errorHandler } from "./middleware/errors.js";
@@ -30,6 +31,34 @@ app.use(
   })
 );
 
+// Rate limiting
+const generalLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "too_many_requests", message: "Too many requests, please try again later.", statusCode: 429 },
+});
+
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "too_many_requests", message: "Too many auth attempts, please try again later.", statusCode: 429 },
+});
+
+const writeLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: "too_many_requests", message: "Slow down — too many writes.", statusCode: 429 },
+});
+
+app.use("/auth", authLimiter);
+app.use(generalLimiter);
+
 // Parsing
 app.use(express.json({ limit: "1mb" }));
 app.use(cookieParser());
@@ -45,7 +74,7 @@ app.get("/health", (_req, res) => {
 });
 
 app.use("/auth", authRoutes);
-app.use("/api/posts", postRoutes);
+app.use("/api/posts", writeLimiter, postRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api", uploadRoutes);
 

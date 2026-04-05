@@ -20,7 +20,7 @@ const router = Router();
 
 // ─── Helper: format post row to API response ───────────────
 
-function formatPost(row: any, userId?: string): any {
+function formatPost(row: any): any {
   return {
     id: row.id,
     authorId: row.author_id,
@@ -72,8 +72,10 @@ function formatPost(row: any, userId?: string): any {
 }
 
 // ─── Base query for posts with joins ────────────────────────
+// $1 is always the viewer's user id (or NULL for unauthenticated).
+// All other parameters in the calling query start at $2.
 
-function postQuery(userId?: string): string {
+function postQuery(): string {
   return `
     SELECT
       p.*,
@@ -92,8 +94,8 @@ function postQuery(userId?: string): string {
       lp.description AS lp_description,
       lp.image_url AS lp_image_url,
       lp.site_name AS lp_site_name,
-      lp.favicon_url AS lp_favicon_url
-      ${userId ? `, EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = '${userId}') AS liked_by_me` : ""}
+      lp.favicon_url AS lp_favicon_url,
+      EXISTS(SELECT 1 FROM likes l WHERE l.post_id = p.id AND l.user_id = $1) AS liked_by_me
     FROM posts p
     JOIN users u ON p.author_id = u.id
     LEFT JOIN posts qp ON p.quoted_post_id = qp.id
@@ -110,8 +112,8 @@ router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Reque
     const userId = req.user?.id;
 
     let whereClause = "WHERE p.parent_id IS NULL";
-    const params: any[] = [];
-    let paramIndex = 1;
+    const params: any[] = [userId ?? null]; // $1 = viewer (parameterised, never interpolated)
+    let paramIndex = 2;
 
     if (!isTeamMember(req.user?.email)) {
       whereClause += " AND p.visibility = 'public'";
@@ -130,7 +132,7 @@ router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Reque
     params.push(limit + 1); // fetch one extra to check hasMore
 
     const sql = `
-      ${postQuery(userId)}
+      ${postQuery()}
       ${whereClause}
       ORDER BY p.created_at DESC
       LIMIT $${paramIndex}
@@ -141,7 +143,7 @@ router.get("/", optionalAuth, validateQuery(paginationSchema), async (req: Reque
     const rows = hasMore ? result.rows.slice(0, limit) : result.rows;
 
     res.json({
-      data: rows.map((r) => formatPost(r, userId)),
+      data: rows.map((r) => formatPost(r)),
       cursor: rows.length > 0 ? rows[rows.length - 1].created_at : null,
       hasMore,
     });
@@ -156,10 +158,10 @@ router.get("/:id", optionalAuth, async (req: Request, res: Response, next: NextF
   try {
     const userId = req.user?.id;
 
-    // Fetch the post
+    // Fetch the post — $1 = viewer, $2 = post id
     const postResult = await pool.query(
-      `${postQuery(userId)} WHERE p.id = $1`,
-      [req.params.id]
+      `${postQuery()} WHERE p.id = $2`,
+      [userId ?? null, req.params.id]
     );
 
     if (postResult.rows.length === 0) {
@@ -172,24 +174,24 @@ router.get("/:id", optionalAuth, async (req: Request, res: Response, next: NextF
       return;
     }
 
-    // Fetch replies (ordered by created_at, all depths)
+    // Fetch replies — $1 = viewer, $2 = root post id
     const repliesResult = await pool.query(
-      `${postQuery(userId)}
-       WHERE p.parent_id = $1 OR p.id IN (
+      `${postQuery()}
+       WHERE p.parent_id = $2 OR p.id IN (
          WITH RECURSIVE reply_tree AS (
-           SELECT id FROM posts WHERE parent_id = $1
+           SELECT id FROM posts WHERE parent_id = $2
            UNION ALL
            SELECT p2.id FROM posts p2 JOIN reply_tree rt ON p2.parent_id = rt.id
          )
          SELECT id FROM reply_tree
        )
        ORDER BY p.created_at ASC`,
-      [req.params.id]
+      [userId ?? null, req.params.id]
     );
 
     res.json({
-      post: formatPost(postResult.rows[0], userId),
-      replies: repliesResult.rows.map((r) => formatPost(r, userId)),
+      post: formatPost(postResult.rows[0]),
+      replies: repliesResult.rows.map((r) => formatPost(r)),
     });
   } catch (err) {
     next(err);
@@ -218,13 +220,13 @@ router.post("/", requireAuth, validateBody(createPostSchema), async (req: Reques
       [userId, title || null, body, url || null, imageUrl || null, category, quotedPostId || null, visibility ?? "public"]
     );
 
-    // Re-fetch with joins
+    // Re-fetch with joins — $1 = viewer, $2 = post id
     const postResult = await pool.query(
-      `${postQuery(userId)} WHERE p.id = $1`,
-      [result.rows[0].id]
+      `${postQuery()} WHERE p.id = $2`,
+      [userId, result.rows[0].id]
     );
 
-    res.status(201).json(formatPost(postResult.rows[0], userId));
+    res.status(201).json(formatPost(postResult.rows[0]));
   } catch (err) {
     next(err);
   }
@@ -268,8 +270,8 @@ router.put("/:id", requireAuth, validateBody(updatePostSchema), async (req: Requ
       params
     );
 
-    const postResult = await pool.query(`${postQuery(userId)} WHERE p.id = $1`, [req.params.id]);
-    res.json(formatPost(postResult.rows[0], userId));
+    const postResult = await pool.query(`${postQuery()} WHERE p.id = $2`, [userId, req.params.id]);
+    res.json(formatPost(postResult.rows[0]));
   } catch (err) {
     next(err);
   }
@@ -345,8 +347,8 @@ router.post("/:id/replies", requireAuth, validateBody(createReplySchema), async 
       [replyToId]
     );
 
-    const postResult = await pool.query(`${postQuery(userId)} WHERE p.id = $1`, [result.rows[0].id]);
-    res.status(201).json(formatPost(postResult.rows[0], userId));
+    const postResult = await pool.query(`${postQuery()} WHERE p.id = $2`, [userId, result.rows[0].id]);
+    res.status(201).json(formatPost(postResult.rows[0]));
   } catch (err) {
     next(err);
   }

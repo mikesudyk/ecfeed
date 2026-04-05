@@ -25,7 +25,11 @@ interface JwtPayload {
 
 // ─── JWT helpers ────────────────────────────────────────────
 
-const JWT_SECRET = process.env.JWT_SECRET || "change-me-in-production";
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: JWT_SECRET environment variable is not set. Refusing to start.");
+  process.exit(1);
+}
+const JWT_SECRET = process.env.JWT_SECRET as string;
 const JWT_EXPIRY = "7d";
 
 export function signToken(payload: JwtPayload): string {
