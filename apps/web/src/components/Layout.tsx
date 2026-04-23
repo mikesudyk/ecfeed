@@ -10,10 +10,10 @@ export default function Layout() {
   const { openCompose } = useCompose();
 
   return (
-    <div className="min-h-screen bg-white dark:bg-[#0a0a0f]">
-      <div className="mx-auto max-w-2xl border-x border-gray-100 dark:border-white/[0.06] min-h-screen">
-        {/* Header */}
-        <header className="sticky top-0 z-50 flex items-center justify-between px-6 py-3.5 border-b border-gray-100 dark:border-white/[0.06] bg-white/80 dark:bg-black/30 backdrop-blur-xl">
+    <div className="min-h-dvh bg-white dark:bg-[#0a0a0f]">
+      <div className="mx-auto max-w-2xl border-x border-gray-100 dark:border-white/[0.06] min-h-dvh flex flex-col">
+        {/* Header — safe area for notched devices in standalone PWA */}
+        <header className="sticky top-0 z-50 flex items-center justify-between border-b border-gray-100 dark:border-white/[0.06] bg-white/80 dark:bg-black/30 backdrop-blur-xl pt-[max(0.75rem,env(safe-area-inset-top))] pb-3.5 pl-[max(1.5rem,env(safe-area-inset-left))] pr-[max(1.5rem,env(safe-area-inset-right))]">
           <Link to="/" className="flex items-center gap-2.5">
             <img src="/icon-192.png" alt="EC Feed" className="w-8 h-8 rounded-lg object-contain" />
             <span className="text-xl font-extrabold tracking-tight text-gray-900 dark:text-gray-50">
@@ -54,7 +54,7 @@ export default function Layout() {
         </header>
 
         {/* Page content */}
-        <main>
+        <main className="flex-1 min-h-0 pb-[env(safe-area-inset-bottom)]">
           <Outlet />
         </main>
       </div>

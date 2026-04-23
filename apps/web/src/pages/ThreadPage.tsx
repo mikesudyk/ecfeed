@@ -181,7 +181,7 @@ function ReplyComposer({
               onChange={(e) => setBody(e.target.value.slice(0, MAX_BODY_LENGTH))}
               placeholder="Write a reply…"
               rows={2}
-              className="w-full resize-none bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none leading-relaxed"
+              className="w-full resize-none bg-transparent text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none leading-relaxed"
               style={{ minHeight: "48px", maxHeight: "180px", overflowY: "auto" }}
             />
             {error && (

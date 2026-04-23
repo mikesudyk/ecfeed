@@ -253,7 +253,7 @@ function EditProfileModal({ profile, isOpen, onClose, onSaved }: EditProfileModa
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value.slice(0, MAX_DISPLAY_NAME_LENGTH))}
                 placeholder="Your name"
-                className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
+                className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
                 autoFocus
               />
             </div>
@@ -268,7 +268,7 @@ function EditProfileModal({ profile, isOpen, onClose, onSaved }: EditProfileModa
                 value={roleTitle}
                 onChange={(e) => setRoleTitle(e.target.value.slice(0, MAX_ROLE_TITLE_LENGTH))}
                 placeholder="e.g. Senior Engineer, Head of Design…"
-                className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
+                className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
               />
             </div>
 
@@ -283,7 +283,7 @@ function EditProfileModal({ profile, isOpen, onClose, onSaved }: EditProfileModa
                 onChange={(e) => setBio(e.target.value.slice(0, MAX_BIO_LENGTH))}
                 placeholder="Tell the team a bit about yourself…"
                 rows={3}
-                className="w-full resize-none bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors leading-relaxed"
+                className="w-full resize-none bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors leading-relaxed"
                 style={{ minHeight: "72px", maxHeight: "160px", overflowY: "auto" }}
               />
               <div className={`text-xs text-right mt-1 tabular-nums ${bioCounterColor}`}>
@@ -299,7 +299,7 @@ function EditProfileModal({ profile, isOpen, onClose, onSaved }: EditProfileModa
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100 dark:border-white/[0.06] flex-shrink-0">
+          <div className="flex items-center justify-end gap-3 px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-100 dark:border-white/[0.06] flex-shrink-0">
             <button
               type="button"
               onClick={onClose}

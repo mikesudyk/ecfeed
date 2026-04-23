@@ -602,7 +602,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
                 onChange={(e) => setBody(e.target.value.slice(0, MAX_BODY_LENGTH))}
                 placeholder={quotedPost ? "Add your thoughts…" : "What's on your mind?"}
                 rows={4}
-                className="w-full resize-none bg-transparent text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none leading-relaxed"
+                className="w-full resize-none bg-transparent text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none leading-relaxed"
                 style={{ minHeight: "96px", maxHeight: "300px", overflowY: "auto" }}
               />
               <div className={`text-xs text-right mt-1 tabular-nums ${counterColor}`}>
@@ -617,7 +617,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
                 value={title}
                 onChange={(e) => setTitle(e.target.value.slice(0, MAX_TITLE_LENGTH))}
                 placeholder="Title — optional"
-                className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
+                className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl px-3.5 py-2.5 text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
               />
             </div>
 
@@ -642,7 +642,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
                   value={url}
                   onChange={(e) => setUrl(e.target.value)}
                   placeholder="https:// — optional link"
-                  className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
+                  className="w-full bg-gray-50 dark:bg-white/[0.04] rounded-xl pl-9 pr-3.5 py-2.5 text-base sm:text-sm text-gray-900 dark:text-gray-100 placeholder:text-gray-400 dark:placeholder:text-gray-600 outline-none border border-gray-200 dark:border-white/[0.06] focus:border-brand-500 dark:focus:border-brand-500 transition-colors"
                 />
               </div>
 
@@ -727,7 +727,7 @@ export function ComposeModal({ isOpen, quotedPost, onClose, onCreated }: Compose
           </div>
 
           {/* Footer */}
-          <div className="flex items-center justify-end gap-3 px-5 py-4 border-t border-gray-100 dark:border-white/[0.06] flex-shrink-0">
+          <div className="flex items-center justify-end gap-3 px-5 pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-gray-100 dark:border-white/[0.06] flex-shrink-0">
             <button
               type="button"
               onClick={onClose}

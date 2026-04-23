@@ -3,15 +3,29 @@
 @tailwind utilities;
 
 @layer base {
+  /*
+   * PWA / mobile: avoid iOS “phantom zoom” (auto text scaling) and reduce
+   * odd pinch/double-tap behavior in standalone. Form fields use
+   * text-base (16px) on small screens in components to prevent focus-zoom
+   * on inputs (iOS still zooms when text is under 16px).
+   */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Fast taps; disables double-tap-to-zoom on many browsers */
+    touch-action: manipulation;
+    scroll-behavior: smooth;
+  }
+
   body {
     @apply font-sans;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    min-height: 100dvh;
   }
 
-  /* Smooth scrolling */
-  html {
-    scroll-behavior: smooth;
+  #root {
+    min-height: 100dvh;
   }
 
   /* Custom scrollbar for dark mode */
