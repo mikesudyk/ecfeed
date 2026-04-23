@@ -1,8 +1,20 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "react-router-dom";
-import { CATEGORY_META, type Post, type LinkPreview } from "@ecfeed/shared";
+import {
+  CATEGORY_META,
+  type Post,
+  type LinkPreview,
+  type LinkPreviewResponse,
+} from "@ecfeed/shared";
 import { useAuth } from "../lib/auth-context";
+import { uploads } from "../lib/api";
+import {
+  getYoutubeIdsFromText,
+  getImageUrlsFromText,
+  firstUnfurlableUrl,
+  isYoutubeUrl,
+} from "../lib/post-media";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -115,7 +127,12 @@ function CategoryBadge({ category }: { category: Post["category"] }) {
 
 // ─── Link Preview Card ────────────────────────────────────────────────────────
 
-function LinkPreviewCard({ preview }: { preview: LinkPreview }) {
+type LinkCardPreview = Pick<
+  LinkPreview,
+  "url" | "title" | "description" | "imageUrl" | "siteName" | "faviconUrl"
+>;
+
+function LinkPreviewCard({ preview }: { preview: LinkCardPreview }) {
   return (
     <a
       href={preview.url}
@@ -151,6 +168,146 @@ function LinkPreviewCard({ preview }: { preview: LinkPreview }) {
         )}
       </div>
     </a>
+  );
+}
+
+// ─── YouTube + inline image URLs in body (and optional post.url) ────────────
+
+function YouTubeEmbeds({ videoIds }: { videoIds: string[] }) {
+  if (videoIds.length === 0) return null;
+  return (
+    <div className="mt-3 flex flex-col gap-3">
+      {videoIds.map((id) => (
+        <div
+          key={id}
+          className="relative w-full overflow-hidden rounded-xl border border-gray-100 dark:border-white/[0.06] bg-black aspect-video"
+        >
+          <iframe
+            title="YouTube video"
+            className="absolute inset-0 h-full w-full"
+            src={`https://www.youtube-nocookie.com/embed/${id}`}
+            loading="lazy"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+            allowFullScreen
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function InlineImagePreviews({
+  imageUrls,
+  onOpen,
+}: {
+  imageUrls: string[];
+  onOpen: (src: string) => void;
+}) {
+  if (imageUrls.length === 0) return null;
+  return (
+    <div
+      className={`mt-3 grid gap-2 ${
+        imageUrls.length > 1 ? "grid-cols-2" : "grid-cols-1"
+      }`}
+    >
+      {imageUrls.map((src) => (
+        <button
+          key={src}
+          type="button"
+          onClick={() => onOpen(src)}
+          className="relative w-full overflow-hidden rounded-xl border border-gray-100 dark:border-white/[0.06] cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+          aria-label="View image from link"
+        >
+          <img src={src} alt="" className="max-h-80 w-full object-cover" loading="lazy" />
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Open Graph link card from the server, client-side unfurl (first "article" URL
+ * in the post), and a fallback bare link for `post.url` when it is not in the
+ * body and no card exists for that URL.
+ */
+function PostUrlAttachment({ post }: { post: Post }) {
+  const { user } = useAuth();
+  const [lazy, setLazy] = useState<(LinkPreviewResponse & { url: string }) | null>(null);
+  const [lazyDone, setLazyDone] = useState(false);
+
+  const serverCard = useMemo(() => {
+    if (!post.linkPreview) return null;
+    if (isYoutubeUrl(post.linkPreview.url)) return null;
+    return post.linkPreview;
+  }, [post.linkPreview]);
+
+  const unfurlCandidate = useMemo(
+    () => (serverCard ? null : firstUnfurlableUrl(post.body, post.url)),
+    [serverCard, post.body, post.url]
+  );
+
+  useEffect(() => {
+    setLazy(null);
+    setLazyDone(false);
+  }, [post.id, post.linkPreview, unfurlCandidate]);
+
+  useEffect(() => {
+    if (!unfurlCandidate) {
+      setLazy(null);
+      setLazyDone(true);
+      return;
+    }
+    if (!user) {
+      setLazy(null);
+      setLazyDone(true);
+      return;
+    }
+    setLazy(null);
+    setLazyDone(false);
+    let cancelled = false;
+    (async () => {
+      try {
+        const p = await uploads.linkPreview(unfurlCandidate);
+        if (cancelled) return;
+        if (p.title || p.description || p.imageUrl || p.siteName) {
+          setLazy({ ...p, url: unfurlCandidate });
+        } else {
+          setLazy(null);
+        }
+      } catch {
+        if (!cancelled) setLazy(null);
+      } finally {
+        if (!cancelled) setLazyDone(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, unfurlCandidate, post.id]);
+
+  const card = serverCard || lazy;
+  const u = post.url?.trim() || null;
+  const canBare = !!(u && !post.body.includes(u) && !isYoutubeUrl(u));
+  const waitingUnfurl = !!(user && u && u === unfurlCandidate && !lazyDone);
+  const hasCardForU = !!(card && u && card.url === u);
+  const showBare = canBare && !hasCardForU && !waitingUnfurl;
+
+  return (
+    <>
+      {card && <LinkPreviewCard preview={card} />}
+      {showBare && u && (
+        <a
+          href={u}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-block text-sm text-brand-500 hover:underline break-all"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {u}
+        </a>
+      )}
+    </>
   );
 }
 
@@ -282,7 +439,17 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote, onDelete }:
   const { user } = useAuth();
   const [expanded, setExpanded] = useState(false);
   const [likeAnimating, setLikeAnimating] = useState(false);
-  const [lightbox, setLightbox] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  const youtubeIds = useMemo(
+    () => getYoutubeIdsFromText(post.body, post.url),
+    [post.body, post.url]
+  );
+  const inlineImageUrls = useMemo(() => {
+    return getImageUrlsFromText(post.body, post.url).filter(
+      (u) => !post.imageUrl || u !== post.imageUrl
+    );
+  }, [post.body, post.url, post.imageUrl]);
 
   const isOwner = !!user && user.id === post.author.id;
 
@@ -368,39 +535,29 @@ export function PostCard({ post, onLike, onUnlike, onReply, onQuote, onDelete }:
 
           {/* Post image — click to expand */}
           {post.imageUrl && (
-            <>
-              <button
-                type="button"
-                onClick={() => setLightbox(true)}
-                className="mt-3 block w-full rounded-xl overflow-hidden border border-gray-100 dark:border-white/[0.06] cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                aria-label="View full image"
-              >
-                <img
-                  src={post.imageUrl}
-                  alt=""
-                  className="max-h-80 w-full object-cover"
-                />
-              </button>
-              {lightbox && (
-                <ImageLightbox src={post.imageUrl} onClose={() => setLightbox(false)} />
-              )}
-            </>
+            <button
+              type="button"
+              onClick={() => setLightboxSrc(post.imageUrl!)}
+              className="mt-3 block w-full rounded-xl overflow-hidden border border-gray-100 dark:border-white/[0.06] cursor-zoom-in focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+              aria-label="View full image"
+            >
+              <img
+                src={post.imageUrl}
+                alt=""
+                className="max-h-80 w-full object-cover"
+              />
+            </button>
           )}
 
-          {/* Link preview — or bare link if preview unavailable */}
-          {post.linkPreview ? (
-            <LinkPreviewCard preview={post.linkPreview} />
-          ) : post.url && !post.body.includes(post.url) ? (
-            <a
-              href={post.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-2 inline-block text-sm text-brand-500 hover:underline break-all"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {post.url}
-            </a>
-          ) : null}
+          <YouTubeEmbeds videoIds={youtubeIds} />
+          <InlineImagePreviews imageUrls={inlineImageUrls} onOpen={setLightboxSrc} />
+
+          {lightboxSrc && (
+            <ImageLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+          )}
+
+          {/* Open Graph card: server-joined or lazy when URL only in text / reply */}
+          <PostUrlAttachment post={post} />
 
           {/* Quoted post */}
           {post.quotedPost && <QuotedPostCard post={post.quotedPost} />}
